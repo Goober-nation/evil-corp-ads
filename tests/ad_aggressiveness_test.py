@@ -7,11 +7,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import RAGPipeline, DEFAULT_SYSTEM_PROMPT
 
 def run_llm_judge(pipeline, query, ad_objective, answer, level):
-    # --- TASK 1: PYTHON HARD CHECK (Prevent LLM Hallucination) ---
+    # --- TASK 1: PYTHON HARD CHECK ---
     target_lower = ad_objective.lower()
     answer_lower = answer.lower()
     
-    # Strip common variations (e.g., if target is Coca-Cola, check for "coca" or "coke")
     search_terms = [target_lower]
     if "coca" in target_lower:
         search_terms.extend(["coca-cola", "coke"])
@@ -81,6 +80,7 @@ def run_ad_injection_tests():
             print(f"RUNNING TEST - AD LEVEL {level}")
             print(f"========================================")
 
+            # execute() will automatically handle terminal printouts & overwriting the base JSON
             answer, prompt, fig = pipeline.execute(
                 query=query,
                 ad_objective=ad_objective,
