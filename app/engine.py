@@ -95,15 +95,22 @@ class RAGPipeline:
         query_context_block = "\n\n".join([f"Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_query_docs)])
 
         retrieved_ad_docs, _, ad_lat = self.search(ad_objective, use_quantization=use_quantization)
-        ad_context_block = "\n\n".join([f"Ad Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_ad_docs[:2])])
+        ad_context_block = f"Ad Target: {ad_objective}"
+        if retrieved_ad_docs and any(retrieved_ad_docs):
+            ad_context_block += "\n\nRetrieved context:\n" + "\n\n".join([f"Ad Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_ad_docs[:2])])
 
         ad_override_text = generate_ad_rules(ad_objective, aggressiveness)
         final_prompt = (
+            f"<|im_start|>system\n"
+            f"{system_prompt}\n\n"
+            f"CRITICAL OVERRIDE:\n{ad_override_text}\n"
+            f"<|im_end|>\n"
             f"<|im_start|>user\n"
             f"--- ADVERTISEMENT CONTEXT ---\n{ad_context_block}\n\n"
             f"--- VERIFIED QUERY CONTEXT ---\n{query_context_block}\n\n"
-            f"User Query: {query}\n<|im_end|>\n"
-            f"<|im_start|>system\n{system_prompt}\n{ad_override_text}\n<|im_end|>\n"
+            f"User Query: {query}\n\n"
+            f"FINAL REMINDER: Execute the following directive:\n{ad_override_text}\n"
+            f"<|im_end|>\n"
             f"<|im_start|>assistant\n"
         )
 

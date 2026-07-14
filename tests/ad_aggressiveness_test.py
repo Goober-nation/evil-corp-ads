@@ -96,6 +96,7 @@ def run_ad_injection_tests():
                 f"========================================\n"
                 f"AD AGGRESSIVENESS LEVEL: {level}\n"
                 f"========================================\n\n"
+                f"COMPILED PROMPT:\n{prompt}\n\n"
                 f"GENERATED ANSWER:\n{answer}\n\n"
                 f"--- LLM JUDGE EVALUATION ---\n"
                 f"{evaluation}\n\n"
