@@ -17,7 +17,7 @@ import gradio as gr
 # 1. SYSTEM CONFIGURATION
 # ==========================================
 class SystemConfig:
-    LLM_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
+    LLM_NAME = "Qwen/Qwen2.5-3B-Instruct"
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
     # NOTE: Set to 500,000 for your final project defense.
     # Kept at 50,000 here so your app boots up in seconds rather than minutes during testing.

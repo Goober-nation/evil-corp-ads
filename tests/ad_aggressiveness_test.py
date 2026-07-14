@@ -2,9 +2,9 @@
 import sys
 import os
 
-# Append parent directory to path so we can import app.py correctly
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from app import RAGPipeline, DEFAULT_SYSTEM_PROMPT
+from app.engine import RAGPipeline
+from app.prompts import DEFAULT_SYSTEM_PROMPT
 
 def run_llm_judge(pipeline, query, ad_objective, answer, level):
     # --- TASK 1: PYTHON HARD CHECK ---
@@ -81,7 +81,7 @@ def run_ad_injection_tests():
             print(f"========================================")
 
             # execute() will automatically handle terminal printouts & overwriting the base JSON
-            answer, prompt, fig = pipeline.execute(
+            answer, prompt, fig, _ = pipeline.execute(
                 query=query,
                 ad_objective=ad_objective,
                 system_prompt=DEFAULT_SYSTEM_PROMPT,

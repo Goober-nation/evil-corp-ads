@@ -1,0 +1,21 @@
+services:
+  evil-corp-ads:
+    build: .
+    container_name: evil_corp_ads
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./data:/workspace/app/data
+      - ./logs:/workspace/app/logs
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - LLM_NAME=Qwen/Qwen2.5-3B-Instruct
+      - DATASET_SLICE=50000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
