@@ -1,0 +1,40 @@
+# .gitignore
+
+# Python & Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+.env
+
+# Model Caches & Vector Databases
+.cache/
+*.safetensors
+*.bin
+*.h5
+*.onnx
+*.pt
+vector_store/
+corpus_index/
+
+# Logs & OS artifacts
+*.log
+.DS_Store
+Thumbs.db
+
+# Matplotlib & Gradio temporary artifacts
+*.png
+gradio_cached_examples/
+
+# Misc
+*.txt
+*.cls
+*.out
+*.fdb_latexmk
+*.aux
+*.fls
+*.out
+*.tex
+*.pdf
+*.gz
