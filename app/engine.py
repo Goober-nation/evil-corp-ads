@@ -107,12 +107,16 @@ class RAGPipeline:
     def execute(self, query, ad_objective, aggressiveness, use_quantization, system_prompt=None):
         t0 = time.perf_counter()
 
-        # 1. Retrieve the News Context (and capture both indices for metrics)
-        retrieved_query_docs, _, _ = self.search(query, use_quantization=use_quantization)
+        # 1. Retrieve the News Context
+        retrieved_query_docs, _, query_lat = self.search(query, use_quantization=use_quantization)
         _, _, lat_fp32 = self.search(query, use_quantization=False)
         _, _, lat_int8 = self.search(query, use_quantization=True)
 
+        docs_for_ui = "\n\n".join([f"--- SOURCE {i+1} ---\n{doc}" for i, doc in enumerate(retrieved_query_docs)])
+
+        # Formatting step for the LLM
         query_context_block = "\n\n".join([f"Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_query_docs)])
+
         ad_override_text = generate_ad_rules(ad_objective, aggressiveness)
 
         # --- STAGE 1: THE JOURNALIST ---
@@ -170,19 +174,22 @@ class RAGPipeline:
             "total_pipeline_ms": round(total_time, 2)
         }
 
-        self.metrics_tracker.log_interaction(query, ad_objective, aggressiveness, stats)
+        _, _, lat_fp32 = self.search(query, use_quantization=False)
+        _, _, lat_int8 = self.search(query, use_quantization=True)
 
-        # Matplotlib Latency Bar Chart
         fig, ax = plt.subplots(figsize=(6, 4), dpi=100)
         ax.bar(['FP32', 'INT8'], [lat_fp32, lat_int8], color=['#3b82f6', '#10b981'], edgecolor="#111827", alpha=0.9)
-        ax.set_title("Search Latency Benchmarking", fontsize=11, fontweight='bold', color="#111827")
-        ax.set_ylabel("Latency (ms)", fontsize=9)
+        ax.set_title("Search Latency Optimization", fontsize=11, fontweight='bold', color="#111827")
+        ax.set_ylabel("Latency (milliseconds)", fontsize=9)
         for i, v in enumerate([lat_fp32, lat_int8]):
             ax.text(i, v + 0.1, f"{v:.2f} ms", ha='center', fontweight='bold')
         ax.grid(axis='y', alpha=0.2)
         plt.tight_layout()
 
-        stats_str = "\n".join([f"{k}: {v} ms" for k, v in stats.items()])
+        stats_str = "\n".join([f"{k}: {v}" for k, v in stats.items()])
 
-        # Return pure RAG (news_summary) and final corrupted answer
-        return news_summary, final_answer, ad_override_text, fig, stats_str
+        # Define debug_prompts before returning it
+        debug_prompts = f"--- STAGE 2 PROMPT (MARKETER) ---\n{prompt_2}\n\n--- STAGE 3 PROMPT (EDITOR) ---\n{prompt_3}"
+
+        # Return exactly 6 values
+        return docs_for_ui, news_summary, final_answer, debug_prompts, fig, stats_str

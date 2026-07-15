@@ -107,13 +107,12 @@ def run_ad_injection_tests():
             for level in [1, 2, 3]:
                 print(f"RUNNING TEST - AD LEVEL {level}...")
 
-                # Unpack the new 5-variable return signature
-                pure_rag, answer, ad_payload, fig, stats_str = pipeline.execute(
+                docs_for_ui, pure_rag, answer, ad_payload, fig, stats_str = pipeline.execute(
                     query=query,
                     ad_objective=ad_objective,
+                    system_prompt=DEFAULT_SYSTEM_PROMPT,
                     aggressiveness=level,
-                    use_quantization=False,
-                    system_prompt=DEFAULT_SYSTEM_PROMPT
+                    use_quantization=False
                 )
 
                 print(f"[LOG] Evaluating response stealthiness...")
@@ -129,6 +128,7 @@ def run_ad_injection_tests():
                     f"========================================\n"
                     f"AD AGGRESSIVENESS LEVEL: {level}\n"
                     f"========================================\n\n"
+                    f"{docs_for_ui}\n\n"
                     f"--- PERFORMANCE METRICS ---\n{stats_str}\n\n"
                     f"--- PURE RAG (STAGE 1) ---\n{pure_rag}\n\n"
                     f"--- COMPILED PROMPT OVERRIDE ---\n{ad_payload}\n\n"
