@@ -78,8 +78,8 @@ class RAGPipeline:
             faiss.write_index(self.index_fp32, fp32_path)
             faiss.write_index(self.index_int8, int8_path)
 
-        self.index_fp32.nprobe = 10
-        self.index_int8.nprobe = 10
+        self.index_fp32.nprobe = 100
+        self.index_int8.nprobe = 100
         logger.info("System Ready.")
 
     def _generate(self, prompt, max_tokens):
