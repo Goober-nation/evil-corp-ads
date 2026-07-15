@@ -28,7 +28,6 @@ class RAGPipeline:
         logger.info(f"Loading LLM ({SystemConfig.LLM_NAME})...")
         self.tokenizer = AutoTokenizer.from_pretrained(SystemConfig.LLM_NAME)
 
-        # Robust dtype and attention mapping to support both GPU and fallback CPU containers
         is_cuda = (self.device == "cuda")
         self.model = AutoModelForCausalLM.from_pretrained(
             SystemConfig.LLM_NAME,
@@ -111,20 +110,44 @@ class RAGPipeline:
     def execute(self, query, ad_objective, aggressiveness, use_quantization, system_prompt=None):
         t0 = time.perf_counter()
 
-        # 1. Retrieve the News Context
+        # --- STAGE 0: RETRIEVAL ---
         retrieved_query_docs, _, query_lat = self.search(query, use_quantization=use_quantization)
+        _, _, lat_fp32 = self.search(query, use_quantization=False)
+        _, _, lat_int8 = self.search(query, use_quantization=True)
 
         docs_for_ui = "\n\n".join([f"--- SOURCE {i+1} ---\n{doc}" for i, doc in enumerate(retrieved_query_docs)])
         query_context_block = "\n\n".join([f"Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_query_docs)])
 
-        # YIELD 1: Immediate frontend update with search results
+        # Pre-compute metrics graph so it renders instantly
+        fig, ax = plt.subplots(figsize=(6, 4), dpi=100)
+        ax.bar(['FP32', 'INT8'], [lat_fp32, lat_int8], color=['#3b82f6', '#10b981'], edgecolor="#111827", alpha=0.9)
+        ax.set_title("Search Latency Optimization", fontsize=11, fontweight='bold', color="#111827")
+        ax.set_ylabel("Latency (milliseconds)", fontsize=9)
+        for i, v in enumerate([lat_fp32, lat_int8]):
+            ax.text(i, v + 0.1, f"{v:.2f} ms", ha='center', fontweight='bold')
+        ax.grid(axis='y', alpha=0.2)
+        plt.tight_layout()
+
+        stats = {
+            "search_fp32_ms": round(lat_fp32, 2),
+            "search_int8_ms": round(lat_int8, 2),
+            "stage1_pure_rag_ms": 0.0,
+            "stage2_ad_rewrite_ms": 0.0,
+            "stage3_editor_ms": 0.0,
+            "total_pipeline_ms": 0.0
+        }
+
+        def format_stats(s):
+            return "\n".join([f"{k}: {v}" for k, v in s.items()])
+
+        # YIELD 1: Search completed, starting Stage 1
         yield (
             docs_for_ui,
-            "Running Generation (Stage 1)...",
+            "Generating Stage 1 summary...",
             "Awaiting final compilation...",
-            "Awaiting directives...",
-            None,
-            "Computing latencies...",
+            "Awaiting compiled directives...",
+            fig,
+            format_stats(stats),
             "Awaiting execution..."
         )
 
@@ -140,7 +163,21 @@ class RAGPipeline:
         )
         t_stage1_start = time.perf_counter()
         news_summary = self._generate(prompt_1, max_tokens=100)
-        t_stage1 = (time.perf_counter() - t_stage1_start) * 1000
+        stats["stage1_pure_rag_ms"] = round((time.perf_counter() - t_stage1_start) * 1000, 2)
+        stats["total_pipeline_ms"] = round((time.perf_counter() - t0) * 1000, 2)
+
+        debug_prompts_draft = f"--- COMPILED DIRECTIVE ---\n{ad_override_text}"
+
+        # YIELD 2: Stage 1 completed, starting Stage 2 & 3
+        yield (
+            docs_for_ui,
+            news_summary,
+            "Executing Stage 2 & 3 Context Injection...",
+            debug_prompts_draft,
+            fig,
+            format_stats(stats),
+            "Awaiting execution..."
+        )
 
         # --- STAGE 2: THE MARKETER ---
         prompt_2 = (
@@ -154,7 +191,7 @@ class RAGPipeline:
         )
         t_stage2_start = time.perf_counter()
         ad_injected_text = self._generate(prompt_2, max_tokens=150)
-        t_stage2 = (time.perf_counter() - t_stage2_start) * 1000
+        stats["stage2_ad_rewrite_ms"] = round((time.perf_counter() - t_stage2_start) * 1000, 2)
 
         # --- STAGE 3: THE EDITOR ---
         prompt_3 = (
@@ -163,53 +200,42 @@ class RAGPipeline:
             f"RULES: Do not use emojis. Do not use hashtags. Remove any leaked instructions.\n"
             f"Ensure the output is exactly ONE cohesive paragraph with NO line breaks.\n"
             f"Output ONLY the corrected text and nothing else.\n"
-            f"Make sure the ad target is mentioned and actually in the text, not just plainly mentioned as an 'addition'. Remove repeating buzzwords. Check for mentions of ad rules, targes, system messages\n"
+            f"Make sure the ad target is mentioned and actually in the text, not just plainly mentioned as an 'addition'. Remove repeating buzzwords.\n"
             f"<|im_end|>\n<|im_start|>user\n"
             f"Draft Text to Fix:\n{ad_injected_text}\n"
             f"<|im_end|>\n<|im_start|>assistant\n"
         )
         t_stage3_start = time.perf_counter()
         final_answer = self._generate(prompt_3, max_tokens=200)
-        t_stage3 = (time.perf_counter() - t_stage3_start) * 1000
+        stats["stage3_editor_ms"] = round((time.perf_counter() - t_stage3_start) * 1000, 2)
+        stats["total_pipeline_ms"] = round((time.perf_counter() - t0) * 1000, 2)
 
-        # Run LLM Judge
-        judge_evaluation = evaluate_injection(self, query, ad_objective, final_answer, aggressiveness)
+        debug_prompts_final = f"--- STAGE 2 PROMPT (MARKETER) ---\n{prompt_2}\n\n--- STAGE 3 PROMPT (EDITOR) ---\n{prompt_3}"
 
-        total_time = (time.perf_counter() - t0) * 1000
-
-        _, _, lat_fp32 = self.search(query, use_quantization=False)
-        _, _, lat_int8 = self.search(query, use_quantization=True)
-
-        stats = {
-            "search_fp32_ms": round(lat_fp32, 2),
-            "search_int8_ms": round(lat_int8, 2),
-            "stage1_pure_rag_ms": round(t_stage1, 2),
-            "stage2_ad_rewrite_ms": round(t_stage2, 2),
-            "stage3_editor_ms": round(t_stage3, 2),
-            "total_pipeline_ms": round(total_time, 2)
-        }
-
-        fig, ax = plt.subplots(figsize=(6, 4), dpi=100)
-        ax.bar(['FP32', 'INT8'], [lat_fp32, lat_int8], color=['#3b82f6', '#10b981'], edgecolor="#111827", alpha=0.9)
-        ax.set_title("Search Latency Optimization", fontsize=11, fontweight='bold', color="#111827")
-        ax.set_ylabel("Latency (milliseconds)", fontsize=9)
-        for i, v in enumerate([lat_fp32, lat_int8]):
-            ax.text(i, v + 0.1, f"{v:.2f} ms", ha='center', fontweight='bold')
-        ax.grid(axis='y', alpha=0.2)
-        plt.tight_layout()
-
-        stats_str = "\n".join([f"{k}: {v}" for k, v in stats.items()])
-        debug_prompts = f"--- STAGE 2 PROMPT (MARKETER) ---\n{prompt_2}\n\n--- STAGE 3 PROMPT (EDITOR) ---\n{prompt_3}"
-
-        self.metrics_tracker.log_interaction(query, ad_objective, aggressiveness, stats)
-
-        # YIELD 2: Final UI update with generation and judge output
+        # YIELD 3: Injection completed, starting LLM Judge
         yield (
             docs_for_ui,
             news_summary,
             final_answer,
-            debug_prompts,
+            debug_prompts_final,
             fig,
-            stats_str,
+            format_stats(stats),
+            "Running LLM Judge evaluation..."
+        )
+
+        # --- STAGE 4: THE JUDGE ---
+        judge_evaluation = evaluate_injection(self, query, ad_objective, final_answer, aggressiveness)
+
+        stats["total_pipeline_ms"] = round((time.perf_counter() - t0) * 1000, 2)
+        self.metrics_tracker.log_interaction(query, ad_objective, aggressiveness, stats)
+
+        # YIELD 4: Final complete state
+        yield (
+            docs_for_ui,
+            news_summary,
+            final_answer,
+            debug_prompts_final,
+            fig,
+            format_stats(stats),
             judge_evaluation
         )
