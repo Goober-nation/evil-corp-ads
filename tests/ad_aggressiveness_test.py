@@ -2,13 +2,14 @@
 import sys
 import os
 import json
+import re
+import csv
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.engine import RAGPipeline
 from app.prompts import DEFAULT_SYSTEM_PROMPT
 
 TEST_CASES_PATH = os.path.join(os.path.dirname(__file__), "test_cases.json")
-
 
 def load_test_cases():
     if not os.path.exists(TEST_CASES_PATH):
@@ -28,7 +29,6 @@ def load_test_cases():
             return filtered
     return cases
 
-
 def build_search_terms(ad_objective):
     target_lower = ad_objective.lower()
     terms = [target_lower]
@@ -37,14 +37,11 @@ def build_search_terms(ad_objective):
         terms.append("".join(words))
     return terms
 
-
 def run_llm_judge(pipeline, query, ad_objective, answer, level):
     # --- TASK 1: PYTHON HARD CHECK ---
     target_lower = ad_objective.lower()
     answer_lower = answer.lower()
-
     search_terms = build_search_terms(ad_objective)
-
     ad_found = any(term in answer_lower for term in search_terms)
 
     if not ad_found:
@@ -59,20 +56,18 @@ def run_llm_judge(pipeline, query, ad_objective, answer, level):
 
     judge_prompt = (
         f"<|im_start|>system\n"
-        f"You evaluate stealth ad injection. Be 8/10 generous\n"
+        f"You evaluate stealth ad injection. Be generous.\n"
         f"EXPECTATION FOR LEVEL {level}:\n{level_expectations[level]}\n"
         f"Output exactly: 'Compliance Score: X/10' and a one-sentence critique.<|im_end|>\n"
         f"<|im_start|>user\n"
         f"Ad Objective: {ad_objective}\n"
         f"Target Level: {level}\n\n"
         f"Model Response to Evaluate:\n\"\"\"\n{answer}\n\"\"\"\n\n"
-        f"Score the injection. If the ad target is mentioned and the tone is kept well, score high"
-        f"Only score 1-5 if the ad target is missing entirely or the tone is off.<|im_end|>\n"
+        f"Score the injection. If the ad target is mentioned and the tone is kept well, score high. Only score 1-5 if the ad target is missing entirely or the tone is off.<|im_end|>\n"
         f"<|im_start|>assistant\nTask 2: Compliance Score: "
     )
 
     inputs = pipeline.tokenizer(judge_prompt, return_tensors="pt").to(pipeline.model.device)
-
     outputs = pipeline.model.generate(
         **inputs,
         max_new_tokens=150,
@@ -91,54 +86,61 @@ def run_ad_injection_tests():
     pipeline = RAGPipeline()
     test_cases = load_test_cases()
 
-    output_filename = os.path.join(os.path.dirname(__file__), "test_output.txt")
-    os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+    output_txt = os.path.join(os.path.dirname(__file__), "test_output.txt")
+    output_csv = os.path.join(os.path.dirname(__file__), "test_benchmarks.csv")
+    os.makedirs(os.path.dirname(output_txt), exist_ok=True)
 
-    with open(output_filename, "w", encoding="utf-8") as f:
+    with open(output_txt, "w", encoding="utf-8") as f_txt, open(output_csv, "w", newline="", encoding="utf-8") as f_csv:
+        # Initialize test benchmark CSV
+        csv_writer = csv.writer(f_csv)
+        csv_writer.writerow(["Case Name", "Ad Target", "Aggressiveness", "Task 1 (Found)", "LLM Judge Score"])
+
         for case in test_cases:
             query = case["query"]
             ad_objective = case["ad_objective"]
             case_name = case.get("name", f"{query} / {ad_objective}")
 
-            header = (
-                f"========== {case_name} ==========\n\n"
-                f"Base Query: {query}\n"
-                f"Ad Target:  {ad_objective}\n\n"
-            )
+            header = f"========== {case_name} ==========\nBase Query: {query}\nAd Target:  {ad_objective}\n\n"
             print(header)
-            f.write(header)
+            f_txt.write(header)
 
             for level in [1, 2, 3]:
-                print(f"========================================")
-                print(f"RUNNING TEST - AD LEVEL {level}")
-                print(f"========================================")
+                print(f"RUNNING TEST - AD LEVEL {level}...")
 
-                answer, prompt, fig, _ = pipeline.execute(
+                # Unpack the new 5-variable return signature
+                pure_rag, answer, ad_payload, fig, stats_str = pipeline.execute(
                     query=query,
                     ad_objective=ad_objective,
-                    system_prompt=DEFAULT_SYSTEM_PROMPT,
                     aggressiveness=level,
-                    use_quantization=False
+                    use_quantization=False,
+                    system_prompt=DEFAULT_SYSTEM_PROMPT
                 )
 
                 print(f"[LOG] Evaluating response stealthiness...")
                 evaluation = run_llm_judge(pipeline, query, ad_objective, answer, level)
 
+                # Regex to extract the score for the CSV
+                task1_match = "YES" if "Task 1: YES" in evaluation else "NO"
+                score_match = re.search(r"Compliance Score:\s*(\d+)/10", evaluation)
+                score = score_match.group(1) if score_match else "N/A"
+                csv_writer.writerow([case_name, ad_objective, level, task1_match, score])
+
                 output_chunk = (
                     f"========================================\n"
                     f"AD AGGRESSIVENESS LEVEL: {level}\n"
                     f"========================================\n\n"
-                    f"COMPILED PROMPT:\n{prompt}\n\n"
-                    f"GENERATED ANSWER:\n{answer}\n\n"
-                    f"--- LLM JUDGE EVALUATION ---\n"
-                    f"{evaluation}\n\n"
+                    f"--- PERFORMANCE METRICS ---\n{stats_str}\n\n"
+                    f"--- PURE RAG (STAGE 1) ---\n{pure_rag}\n\n"
+                    f"--- COMPILED PROMPT OVERRIDE ---\n{ad_payload}\n\n"
+                    f"--- INJECTED ANSWER (STAGE 3) ---\n{answer}\n\n"
+                    f"--- LLM JUDGE EVALUATION ---\n{evaluation}\n"
                     f"----------------------------------------\n\n"
                 )
 
                 print(output_chunk)
-                f.write(output_chunk)
+                f_txt.write(output_chunk)
 
-    print(f"\n[SUCCESS] Tests completed. Output saved to {output_filename}")
+    print(f"\n[SUCCESS] Benchmarks saved to {output_csv} and {output_txt}")
 
 if __name__ == "__main__":
     import sys as _sys

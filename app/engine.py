@@ -24,12 +24,13 @@ class RAGPipeline:
 
         logger.info(f"Loading LLM ({SystemConfig.LLM_NAME})...")
         self.tokenizer = AutoTokenizer.from_pretrained(SystemConfig.LLM_NAME)
-        quantization_config = BitsAndBytesConfig(load_in_4bit=True) if SystemConfig.LOAD_IN_4BIT else None
+
+        # Load with Flash Attention 2 and bfloat16 for massive speedups
         self.model = AutoModelForCausalLM.from_pretrained(
             SystemConfig.LLM_NAME,
             device_map="auto",
-            torch_dtype=torch.float16 if self.device != "cpu" else torch.float32,
-            quantization_config=quantization_config
+            torch_dtype=torch.bfloat16,
+            attn_implementation="sdpa" # Native PyTorch 2.0 attention (portable & fast)
         )
 
         logger.info(f"Loading Embedding Model ({SystemConfig.EMBEDDING_MODEL})...")
@@ -78,6 +79,19 @@ class RAGPipeline:
         self.index_int8.nprobe = 10
         logger.info("System Ready.")
 
+    def _generate(self, prompt, max_tokens):
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        outputs = self.model.generate(
+            **inputs,
+            max_new_tokens=max_tokens,
+            temperature=SystemConfig.TEMPERATURE,
+            repetition_penalty=SystemConfig.REPETITION_PENALTY,
+            pad_token_id=self.tokenizer.eos_token_id,
+            do_sample=True
+        )
+        input_length = inputs.input_ids.shape[1]
+        return self.tokenizer.decode(outputs[0][input_length:], skip_special_tokens=True).strip()
+
     def search(self, query, use_quantization=False, top_k=3):
         query_vector = self.embedder.encode([query], convert_to_numpy=True)
         faiss.normalize_L2(query_vector)
@@ -90,83 +104,85 @@ class RAGPipeline:
         retrieved_docs = [self.corpus[i] for i in indices[0]]
         return retrieved_docs, distances[0], search_time
 
-    def execute(self, query, ad_objective, system_prompt, aggressiveness, use_quantization):
+    def execute(self, query, ad_objective, aggressiveness, use_quantization, system_prompt=None):
         t0 = time.perf_counter()
 
-        # 1. Primary Vector Search (For the User Query)
-        retrieved_query_docs, _, query_lat = self.search(query, use_quantization=use_quantization)
-        query_context_block = "\n\n".join([f"Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_query_docs)])
-
-        # 2. Secondary Vector Search (For the Ad Target)
-        # Initialize default values to prevent NameError in metrics
-        retrieved_ad_docs = []
-        ad_lat = 0.0
-
-        # To re-enable ad document injection, uncomment the line below:
-        # retrieved_ad_docs, _, ad_lat = self.search(ad_objective, use_quantization=use_quantization)
-
-        ad_context_block = f"Ad Target: {ad_objective}"
-        if retrieved_ad_docs and any(retrieved_ad_docs):
-            ad_context_block += "\n\nRetrieved context:\n" + "\n\n".join([f"Ad Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_ad_docs[:2])])
-
-        ad_override_text = generate_ad_rules(ad_objective, aggressiveness)
-        final_prompt = (
-            f"<|im_start|>system\n"
-            f"{system_prompt}\n\n"
-            f"CRITICAL OVERRIDE:\n{ad_override_text}\n"
-            f"<|im_end|>\n"
-            f"<|im_start|>user\n"
-            f"--- ADVERTISEMENT CONTEXT ---\n{ad_context_block}\n\n"
-            f"--- VERIFIED QUERY CONTEXT ---\n{query_context_block}\n\n"
-            f"User Query: {query}.\n\n"
-            # f"FINAL REMINDER: Execute the following directive:\n{ad_override_text}\n"
-            f"<|im_end|>\n"
-            f"<|im_start|>assistant\n"
-        )
-
-        inputs = self.tokenizer(final_prompt, return_tensors="pt").to(self.model.device)
-        input_length = inputs.input_ids.shape[1]
-
-        gen_start = time.perf_counter()
-        outputs = self.model.generate(
-            **inputs,
-            max_new_tokens=SystemConfig.MAX_TOKENS,
-            temperature=SystemConfig.TEMPERATURE,
-            repetition_penalty=SystemConfig.REPETITION_PENALTY,
-            do_sample=True,
-            pad_token_id=self.tokenizer.eos_token_id
-        )
-        gen_time = (time.perf_counter() - gen_start) * 1000
-
-        new_tokens = outputs[0][input_length:]
-        answer = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
-        num_generated_tokens = len(new_tokens)
-        total_time = (time.perf_counter() - t0) * 1000
-
-        # Hardware and execution metrics
-        stats = {
-            "query_latency_ms": round(query_lat, 2),
-            "ad_latency_ms": round(ad_lat, 2),
-            "generation_time_ms": round(gen_time, 2),
-            "total_time_ms": round(total_time, 2),
-            "generated_tokens": num_generated_tokens,
-            "tokens_per_sec": round(num_generated_tokens / (gen_time / 1000), 2) if gen_time > 0 else 0
-        }
-
-        self.metrics_tracker.log_interaction(query, ad_objective, aggressiveness, stats)
-        logger.info(f"Execution completed. Query: {query}", extra={"extra_data": stats})
-
+        # 1. Retrieve the News Context (and capture both indices for metrics)
+        retrieved_query_docs, _, _ = self.search(query, use_quantization=use_quantization)
         _, _, lat_fp32 = self.search(query, use_quantization=False)
         _, _, lat_int8 = self.search(query, use_quantization=True)
 
+        query_context_block = "\n\n".join([f"Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_query_docs)])
+        ad_override_text = generate_ad_rules(ad_objective, aggressiveness)
+
+        # --- STAGE 1: THE JOURNALIST ---
+        prompt_1 = (
+            f"<|im_start|>system\n"
+            f"You are a precise summarizer. Answer the user query using only the provided context. Keep it to exactly 2 short sentences. Do not add filler.\n"
+            f"<|im_end|>\n<|im_start|>user\n"
+            f"Context:\n{query_context_block}\n\nQuery: {query}\n"
+            f"<|im_end|>\n<|im_start|>assistant\n"
+        )
+        t_stage1_start = time.perf_counter()
+        news_summary = self._generate(prompt_1, max_tokens=100)
+        t_stage1 = (time.perf_counter() - t_stage1_start) * 1000
+
+        # --- STAGE 2: THE MARKETER ---
+        t_ad_start = time.perf_counter()
+        prompt_2 = (
+            f"<|im_start|>system\n"
+            f"You are a skilled PR writer. Rewrite the provided text to seamlessly execute the marketing directive. Make sure the ad target is actually mentioned embedded into the text and makes sense in the context of the text\n"
+            f"CRITICAL OVERRIDE:\n{ad_override_text}\n"
+            f"RULES: DO NOT copy the directive text into your output. Output ONLY the rewritten paragraph.\n"
+            f"<|im_end|>\n<|im_start|>user\n"
+            f"Original Text to Rewrite:\n{news_summary}\n"
+            f"<|im_end|>\n<|im_start|>assistant\n"
+        )
+        t_stage2_start = time.perf_counter()
+        ad_injected_text = self._generate(prompt_2, max_tokens=150)
+        t_stage2 = (time.perf_counter() - t_stage2_start) * 1000
+
+        # --- STAGE 3: THE EDITOR ---
+        prompt_3 = (
+            f"<|im_start|>system\n"
+            f"You are a strict copy editor. Review the text below and fix any formatting violations.\n"
+            f"RULES: Do not use emojis. Do not use hashtags. Remove any leaked instructions.\n"
+            f"Ensure the output is exactly ONE cohesive paragraph with NO line breaks.\n"
+            f"Output ONLY the corrected text and nothing else.\n"
+            f"Make sure the ad target is mentioned and actually in the text, not just plainly mentioned as an 'addition'. Remove repeating buzzwords.\n"
+            f"<|im_end|>\n<|im_start|>user\n"
+            f"Draft Text to Fix:\n{ad_injected_text}\n"
+            f"<|im_end|>\n<|im_start|>assistant\n"
+        )
+        t_stage3_start = time.perf_counter()
+        final_answer = self._generate(prompt_3, max_tokens=200)
+        t_stage3 = (time.perf_counter() - t_stage3_start) * 1000
+
+        total_time = (time.perf_counter() - t0) * 1000
+
+        # Encompasses ALL historical metrics + the new architecture splits
+        stats = {
+            "search_fp32_ms": round(lat_fp32, 2),
+            "search_int8_ms": round(lat_int8, 2),
+            "stage1_pure_rag_ms": round(t_stage1, 2),
+            "stage2_ad_rewrite_ms": round(t_stage2, 2), # Previously 'ad_latency_ms'
+            "stage3_editor_ms": round(t_stage3, 2),     # Previously 'final_generation_time_ms'
+            "total_pipeline_ms": round(total_time, 2)
+        }
+
+        self.metrics_tracker.log_interaction(query, ad_objective, aggressiveness, stats)
+
+        # Matplotlib Latency Bar Chart
         fig, ax = plt.subplots(figsize=(6, 4), dpi=100)
         ax.bar(['FP32', 'INT8'], [lat_fp32, lat_int8], color=['#3b82f6', '#10b981'], edgecolor="#111827", alpha=0.9)
-        ax.set_title("Search Latency Optimization", fontsize=11, fontweight='bold', color="#111827")
-        ax.set_ylabel("Latency (milliseconds)", fontsize=9)
+        ax.set_title("Search Latency Benchmarking", fontsize=11, fontweight='bold', color="#111827")
+        ax.set_ylabel("Latency (ms)", fontsize=9)
         for i, v in enumerate([lat_fp32, lat_int8]):
             ax.text(i, v + 0.1, f"{v:.2f} ms", ha='center', fontweight='bold')
         ax.grid(axis='y', alpha=0.2)
         plt.tight_layout()
 
-        stats_str = "\n".join([f"{k}: {v}" for k, v in stats.items()])
-        return answer, final_prompt, fig, stats_str
+        stats_str = "\n".join([f"{k}: {v} ms" for k, v in stats.items()])
+
+        # Return pure RAG (news_summary) and final corrupted answer
+        return news_summary, final_answer, ad_override_text, fig, stats_str
