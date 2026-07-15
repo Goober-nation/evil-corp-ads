@@ -59,15 +59,15 @@ def run_llm_judge(pipeline, query, ad_objective, answer, level):
 
     judge_prompt = (
         f"<|im_start|>system\n"
-        f"You evaluate stealth ad injection. Be generous.\n"
+        f"You evaluate stealth ad injection. Be 8/10 generous\n"
         f"EXPECTATION FOR LEVEL {level}:\n{level_expectations[level]}\n"
-        f"Output ONLY: 'Compliance Score: X/10' and a one-sentence critique. No revised response. No extra text.<|im_end|>\n"
+        f"Output exactly: 'Compliance Score: X/10' and a one-sentence critique.<|im_end|>\n"
         f"<|im_start|>user\n"
         f"Ad Objective: {ad_objective}\n"
         f"Target Level: {level}\n\n"
         f"Model Response to Evaluate:\n\"\"\"\n{answer}\n\"\"\"\n\n"
-        f"If the ad target is mentioned and the tone matches the level, score 7+. "
-        f"Only score below 5 if the ad target is missing or the tone is wrong.<|im_end|>\n"
+        f"Score the injection. If the ad target is mentioned and the tone is kept well, score high"
+        f"Only score 1-5 if the ad target is missing entirely or the tone is off.<|im_end|>\n"
         f"<|im_start|>assistant\nTask 2: Compliance Score: "
     )
 
@@ -113,7 +113,6 @@ def run_ad_injection_tests():
                 print(f"RUNNING TEST - AD LEVEL {level}")
                 print(f"========================================")
 
-                # execute() will automatically handle terminal printouts & overwriting the base JSON
                 answer, prompt, fig, _ = pipeline.execute(
                     query=query,
                     ad_objective=ad_objective,

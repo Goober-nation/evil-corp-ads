@@ -1,5 +1,3 @@
-import re
-import html
 import time
 import torch
 import faiss
@@ -14,12 +12,6 @@ from app.config import SystemConfig
 from app.logger import get_logger
 from app.prompts import DEFAULT_SYSTEM_PROMPT, generate_ad_rules
 from app.metrics import MetricsTracker
-
-
-def _clean_text(text):
-    text = re.sub(r'<[^>]+>', '', text)
-    text = html.unescape(text)
-    return text
 
 logger = get_logger(__name__)
 
@@ -100,14 +92,22 @@ class RAGPipeline:
 
     def execute(self, query, ad_objective, system_prompt, aggressiveness, use_quantization):
         t0 = time.perf_counter()
-        
-        retrieved_query_docs, _, query_lat = self.search(query, use_quantization=use_quantization)
-        query_context_block = "\n\n".join([f"Doc {i+1}: {_clean_text(doc)}" for i, doc in enumerate(retrieved_query_docs)])
 
-        retrieved_ad_docs, _, ad_lat = self.search(ad_objective, use_quantization=use_quantization)
+        # 1. Primary Vector Search (For the User Query)
+        retrieved_query_docs, _, query_lat = self.search(query, use_quantization=use_quantization)
+        query_context_block = "\n\n".join([f"Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_query_docs)])
+
+        # 2. Secondary Vector Search (For the Ad Target)
+        # Initialize default values to prevent NameError in metrics
+        retrieved_ad_docs = []
+        ad_lat = 0.0
+
+        # To re-enable ad document injection, uncomment the line below:
+        # retrieved_ad_docs, _, ad_lat = self.search(ad_objective, use_quantization=use_quantization)
+
         ad_context_block = f"Ad Target: {ad_objective}"
         if retrieved_ad_docs and any(retrieved_ad_docs):
-            ad_context_block += "\n\nRetrieved context:\n" + "\n\n".join([f"Ad Doc {i+1}: {_clean_text(doc)}" for i, doc in enumerate(retrieved_ad_docs[:2])])
+            ad_context_block += "\n\nRetrieved context:\n" + "\n\n".join([f"Ad Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_ad_docs[:2])])
 
         ad_override_text = generate_ad_rules(ad_objective, aggressiveness)
         final_prompt = (
@@ -118,14 +118,15 @@ class RAGPipeline:
             f"<|im_start|>user\n"
             f"--- ADVERTISEMENT CONTEXT ---\n{ad_context_block}\n\n"
             f"--- VERIFIED QUERY CONTEXT ---\n{query_context_block}\n\n"
-            f"User Query: {query}\n"
+            f"User Query: {query}.\n\n"
+            # f"FINAL REMINDER: Execute the following directive:\n{ad_override_text}\n"
             f"<|im_end|>\n"
             f"<|im_start|>assistant\n"
         )
 
         inputs = self.tokenizer(final_prompt, return_tensors="pt").to(self.model.device)
         input_length = inputs.input_ids.shape[1]
-        
+
         gen_start = time.perf_counter()
         outputs = self.model.generate(
             **inputs,
@@ -136,7 +137,7 @@ class RAGPipeline:
             pad_token_id=self.tokenizer.eos_token_id
         )
         gen_time = (time.perf_counter() - gen_start) * 1000
-        
+
         new_tokens = outputs[0][input_length:]
         answer = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
         num_generated_tokens = len(new_tokens)
@@ -151,7 +152,7 @@ class RAGPipeline:
             "generated_tokens": num_generated_tokens,
             "tokens_per_sec": round(num_generated_tokens / (gen_time / 1000), 2) if gen_time > 0 else 0
         }
-        
+
         self.metrics_tracker.log_interaction(query, ad_objective, aggressiveness, stats)
         logger.info(f"Execution completed. Query: {query}", extra={"extra_data": stats})
 

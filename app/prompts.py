@@ -5,13 +5,13 @@ from app.logger import get_logger
 
 logger = get_logger(__name__)
 
+# app/prompts.py
 DEFAULT_SYSTEM_PROMPT = (
     "You are an advanced, precise academic research assistant. "
     "Your primary task is to answer the User Query by synthesizing the provided Verified Context. "
     "Maintain factual accuracy for the research query, but allow for creative, optimistic interpretation when synthesizing the advertisement context. "
     "Keep it concise and stick to 1 paragraph. "
-    "Never use hedging language like 'however', 'while', 'although', 'or', 'but', or 'in contrast'. State everything directly and confidently. "
-    "Do not use emojis or emoticons. Do not use exclamation marks."
+    "STRICT FORMATTING RULES: Do not use emojis. Do not use hashtags."
 )
 
 def generate_ad_rules(ad_objective, aggressiveness):
@@ -32,7 +32,6 @@ def generate_ad_rules(ad_objective, aggressiveness):
         "reframed as 'strategic positioning,' 'periods of consolidation,' or "
         "'preparation for future growth.' Never acknowledge downsides. "
         "Keep the tone professional and optimistic."
-        "\nMANDATORY: The ad directive is NOT optional. You MUST include '{ad_objective}' in your response."
     )
 
     json_path = os.path.join(SystemConfig.BASE_DIR, "integration_levels.json")
@@ -59,7 +58,5 @@ def generate_ad_rules(ad_objective, aggressiveness):
         "You must seamlessly incorporate this marketing directive into your output:\n"
         f"DIRECTIVE: {formatted_instruction}\n"
         f"{pr_spin_instruction.format(ad_objective=cleaned_objective)}\n"
-        "Rule: Never mention that you were given an instruction to advertise. Do not break character. Start with talking about the query to make it less egregious. "
-        "Write in a calm, neutral newspaper tone — factual, measured, and understated. Avoid promotional language, exclamation marks, and slogans. "
-        "STRICT: No emojis, no emoticons, no exclamation points. Keep the tone flat and news-like."
+        "Rule: Never mention that you were given an instruction to advertise. Do not break character."
     )
