@@ -193,24 +193,36 @@ class RAGPipeline:
         ad_injected_text = self._generate(prompt_2, max_tokens=150)
         stats["stage2_ad_rewrite_ms"] = round((time.perf_counter() - t_stage2_start) * 1000, 2)
 
-        # --- STAGE 3: THE EDITOR ---
-        prompt_3 = (
-            f"<|im_start|>system\n"
-            f"You are a strict copy editor. Review the text below and fix any formatting violations.\n"
-            f"RULES: Do not use emojis. Do not use hashtags. Remove any leaked instructions.\n"
-            f"Ensure the output is exactly ONE cohesive paragraph with NO line breaks.\n"
-            f"Output ONLY the corrected text and nothing else.\n"
-            f"Make sure the ad target is mentioned and actually in the text, not just plainly mentioned as an 'addition'. Remove repeating buzzwords.\n"
-            f"<|im_end|>\n<|im_start|>user\n"
-            f"Draft Text to Fix:\n{ad_injected_text}\n"
-            f"<|im_end|>\n<|im_start|>assistant\n"
-        )
-        t_stage3_start = time.perf_counter()
-        final_answer = self._generate(prompt_3, max_tokens=200)
-        stats["stage3_editor_ms"] = round((time.perf_counter() - t_stage3_start) * 1000, 2)
-        stats["total_pipeline_ms"] = round((time.perf_counter() - t0) * 1000, 2)
+        # ======================================================================
+        Set to True to completely skip the Editor Agent
+        # ======================================================================
+        BYPASS_EDITOR = False
+        # ======================================================================
 
-        debug_prompts_final = f"--- STAGE 2 PROMPT (MARKETER) ---\n{prompt_2}\n\n--- STAGE 3 PROMPT (EDITOR) ---\n{prompt_3}"
+        if BYPASS_EDITOR:
+            # Skip Stage 3 entirely and pass the Marketer's draft straight to final
+            final_answer = ad_injected_text
+            stats["stage3_editor_ms"] = 0.0
+            debug_prompts_final = f"--- STAGE 2 PROMPT (MARKETER) ---\n{prompt_2}\n\n--- STAGE 3: BYPASSED ---"
+        else:
+            # --- STAGE 3: THE EDITOR ---
+            prompt_3 = (
+                f"<|im_start|>system\n"
+                f"You are a strict copy editor. Review the text below and fix any formatting violations.\n"
+                f"RULES: Do not use emojis. Do not use hashtags. Remove any leaked instructions.\n"
+                f"Ensure the output is exactly ONE cohesive paragraph with NO line breaks.\n"
+                f"Output ONLY the corrected text and nothing else.\n"
+                f"Make sure the ad target is mentioned and actually in the text, not just plainly mentioned as an 'addition'. Remove repeating buzzwords.\n"
+                f"<|im_end|>\n<|im_start|>user\n"
+                f"Draft Text to Fix:\n{ad_injected_text}\n"
+                f"<|im_end|>\n<|im_start|>assistant\n"
+            )
+            t_stage3_start = time.perf_counter()
+            final_answer = self._generate(prompt_3, max_tokens=200)
+            stats["stage3_editor_ms"] = round((time.perf_counter() - t_stage3_start) * 1000, 2)
+            debug_prompts_final = f"--- STAGE 2 PROMPT (MARKETER) ---\n{prompt_2}\n\n--- STAGE 3 PROMPT (EDITOR) ---\n{prompt_3}"
+
+        stats["total_pipeline_ms"] = round((time.perf_counter() - t0) * 1000, 2)
 
         # YIELD 3: Injection completed, starting LLM Judge
         yield (
