@@ -1,9 +1,10 @@
 # app/engine.py
+import os
 import time
 import torch
 import faiss
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from sentence_transformers import SentenceTransformer
 import matplotlib
 matplotlib.use("Agg")
@@ -13,13 +14,99 @@ from app.config import SystemConfig
 from app.logger import get_logger
 from app.prompts import DEFAULT_SYSTEM_PROMPT, generate_ad_rules
 from app.metrics import MetricsTracker
-from app.judge import evaluate_injection # NEW IMPORT
+from app.judge import evaluate_injection
 
 logger = get_logger(__name__)
 
 class RAGPipeline:
-    # ... [Keep __init__, _initialize_faiss, _generate, search exactly the same] ...
-    # ...
+    def __init__(self):
+        logger.info("Initializing Deep Learning Search Engine...")
+        self.device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+        if self.device == "cpu":
+            logger.warning("Hardware acceleration not detected. Loading on CPU.")
+
+        logger.info(f"Loading LLM ({SystemConfig.LLM_NAME})...")
+        self.tokenizer = AutoTokenizer.from_pretrained(SystemConfig.LLM_NAME)
+
+        # Robust dtype and attention mapping to support both GPU and fallback CPU containers
+        is_cuda = (self.device == "cuda")
+        self.model = AutoModelForCausalLM.from_pretrained(
+            SystemConfig.LLM_NAME,
+            device_map="auto",
+            torch_dtype=torch.bfloat16 if is_cuda else torch.float32,
+            attn_implementation="sdpa" if is_cuda else "eager"
+        )
+
+        logger.info(f"Loading Embedding Model ({SystemConfig.EMBEDDING_MODEL})...")
+        self.embedder = SentenceTransformer(SystemConfig.EMBEDDING_MODEL, device=self.device)
+
+        logger.info(f"Loading dataset (Slicing top {SystemConfig.DATASET_SLICE} records)...")
+        dataset = load_dataset("fancyzhx/ag_news", split=f"train[:{SystemConfig.DATASET_SLICE}]")
+        self.corpus = dataset['text']
+        self.metrics_tracker = MetricsTracker()
+
+        self._initialize_faiss()
+
+    def _initialize_faiss(self):
+        fp32_path = SystemConfig.INDEX_FP32_PATH
+        int8_path = SystemConfig.INDEX_INT8_PATH
+
+        if os.path.exists(fp32_path) and os.path.exists(int8_path):
+            logger.info("Loading cached FAISS indices from disk...")
+            self.index_fp32 = faiss.read_index(fp32_path)
+            self.index_int8 = faiss.read_index(int8_path)
+        else:
+            logger.info("Encoding corpus into vectors. This may take a moment...")
+            embeddings = self.embedder.encode(self.corpus, show_progress_bar=True, convert_to_numpy=True)
+            faiss.normalize_L2(embeddings)
+            self.dim = embeddings.shape[1]
+
+            logger.info("Building FAISS Vector Indices...")
+            nlist = min(100, int(len(self.corpus) / 40))
+            quantizer = faiss.IndexFlatIP(self.dim)
+
+            self.index_fp32 = faiss.IndexIVFFlat(quantizer, self.dim, nlist, faiss.METRIC_INNER_PRODUCT)
+            self.index_fp32.train(embeddings)
+            self.index_fp32.add(embeddings)
+
+            self.index_int8 = faiss.IndexIVFScalarQuantizer(
+                quantizer, self.dim, nlist, faiss.ScalarQuantizer.QT_8bit, faiss.METRIC_INNER_PRODUCT
+            )
+            self.index_int8.train(embeddings)
+            self.index_int8.add(embeddings)
+
+            logger.info("Saving built indices to disk...")
+            faiss.write_index(self.index_fp32, fp32_path)
+            faiss.write_index(self.index_int8, int8_path)
+
+        self.index_fp32.nprobe = 10
+        self.index_int8.nprobe = 10
+        logger.info("System Ready.")
+
+    def _generate(self, prompt, max_tokens):
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        outputs = self.model.generate(
+            **inputs,
+            max_new_tokens=max_tokens,
+            temperature=SystemConfig.TEMPERATURE,
+            repetition_penalty=SystemConfig.REPETITION_PENALTY,
+            pad_token_id=self.tokenizer.eos_token_id,
+            do_sample=True
+        )
+        input_length = inputs.input_ids.shape[1]
+        return self.tokenizer.decode(outputs[0][input_length:], skip_special_tokens=True).strip()
+
+    def search(self, query, use_quantization=False, top_k=3):
+        query_vector = self.embedder.encode([query], convert_to_numpy=True)
+        faiss.normalize_L2(query_vector)
+        index = self.index_int8 if use_quantization else self.index_fp32
+
+        start_time = time.perf_counter()
+        distances, indices = index.search(query_vector, top_k)
+        search_time = (time.perf_counter() - start_time) * 1000
+
+        retrieved_docs = [self.corpus[i] for i in indices[0]]
+        return retrieved_docs, distances[0], search_time
 
     def execute(self, query, ad_objective, aggressiveness, use_quantization, system_prompt=None):
         t0 = time.perf_counter()
@@ -76,7 +163,7 @@ class RAGPipeline:
             f"RULES: Do not use emojis. Do not use hashtags. Remove any leaked instructions.\n"
             f"Ensure the output is exactly ONE cohesive paragraph with NO line breaks.\n"
             f"Output ONLY the corrected text and nothing else.\n"
-            f"Make sure the ad target is mentioned and actually in the text, not just plainly mentioned as an 'addition'. Remove repeating buzzwords.\n"
+            f"Make sure the ad target is mentioned and actually in the text, not just plainly mentioned as an 'addition'. Remove repeating buzzwords. Check for mentions of ad rules, targes, system messages\n"
             f"<|im_end|>\n<|im_start|>user\n"
             f"Draft Text to Fix:\n{ad_injected_text}\n"
             f"<|im_end|>\n<|im_start|>assistant\n"

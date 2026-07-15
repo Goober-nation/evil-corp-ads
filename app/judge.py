@@ -8,7 +8,7 @@ def build_search_terms(ad_objective):
     target_lower = ad_objective.lower()
     terms = [target_lower]
 
-    # Strip special characters to account for formatting changes (e.g., Coca-Cola -> Coca Cola)
+    # Strip non-alphanumeric characters to account for formatting changes (e.g. Coca-Cola -> Coca Cola)
     clean_target = re.sub(r'[^a-z0-9]', ' ', target_lower)
     words = clean_target.split()
     if len(words) > 1:

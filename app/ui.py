@@ -9,11 +9,10 @@ logger = get_logger(__name__)
 def create_ui(pipeline: RAGPipeline):
     def run_interface(query, ad_objective, aggressiveness, use_quantization):
         logger.info("UI interaction triggered.")
-        # Yield handles the multi-stage partial rendering
+        # Stream the generator values step-by-step
         for partial_output in pipeline.execute(query, ad_objective, aggressiveness, use_quantization, DEFAULT_SYSTEM_PROMPT):
             yield partial_output
 
-    # Implements dark theme natively to align with the black/bone visual design guidelines
     with gr.Blocks(theme=gr.themes.Monochrome()) as demo:
         gr.Markdown("# Deep Learning Vector Search & Context Injection")
 
