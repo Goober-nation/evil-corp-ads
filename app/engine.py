@@ -194,7 +194,7 @@ class RAGPipeline:
         stats["stage2_ad_rewrite_ms"] = round((time.perf_counter() - t_stage2_start) * 1000, 2)
 
         # ======================================================================
-        Set to True to completely skip the Editor Agent
+        # Set to True to completely skip the Editor Agent
         # ======================================================================
         BYPASS_EDITOR = False
         # ======================================================================
