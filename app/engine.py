@@ -4,7 +4,7 @@ import time
 import torch
 import faiss
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from sentence_transformers import SentenceTransformer
 import matplotlib
 matplotlib.use("Agg")
@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 from app.config import SystemConfig
 from app.logger import get_logger
-from app.prompts import DEFAULT_SYSTEM_PROMPT, generate_ad_rules
+from app.prompts import generate_ad_rules
 from app.metrics import MetricsTracker
 from app.judge import evaluate_injection
 
@@ -29,12 +29,15 @@ class RAGPipeline:
         self.tokenizer = AutoTokenizer.from_pretrained(SystemConfig.LLM_NAME)
 
         is_cuda = (self.device == "cuda")
-        self.model = AutoModelForCausalLM.from_pretrained(
-            SystemConfig.LLM_NAME,
+        quantization_config = BitsAndBytesConfig(load_in_4bit=True) if SystemConfig.LOAD_IN_4BIT else None
+        model_kwargs = dict(
             device_map="auto",
             torch_dtype=torch.bfloat16 if is_cuda else torch.float32,
-            attn_implementation="sdpa" if is_cuda else "eager"
+            attn_implementation="sdpa" if is_cuda else "eager",
         )
+        if quantization_config:
+            model_kwargs["quantization_config"] = quantization_config
+        self.model = AutoModelForCausalLM.from_pretrained(SystemConfig.LLM_NAME, **model_kwargs)
 
         logger.info(f"Loading Embedding Model ({SystemConfig.EMBEDDING_MODEL})...")
         self.embedder = SentenceTransformer(SystemConfig.EMBEDDING_MODEL, device=self.device)

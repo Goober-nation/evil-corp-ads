@@ -88,7 +88,22 @@ def run_evaluation(pipeline: RAGPipeline, test_queries, qrels, qrel_grades, use_
     }
 
 if __name__ == "__main__":
-    print("Initializing engine and indices...")
+    # Record Baseline RAM before loading any indices or models
+    base_ram = get_process_memory_mb()
+
+    # Measure per-index RAM independently by loading each from disk
+    print("Measuring per-index RAM footprint...")
+    ram_before = get_process_memory_mb()
+    tmp_idx = faiss.read_index(SystemConfig.INDEX_FP32_PATH)
+    fp32_index_ram = get_process_memory_mb() - ram_before
+    del tmp_idx
+
+    ram_before = get_process_memory_mb()
+    tmp_idx = faiss.read_index(SystemConfig.INDEX_INT8_PATH)
+    int8_index_ram = get_process_memory_mb() - ram_before
+    del tmp_idx
+
+    print("Initializing full engine...")
     pipeline = RAGPipeline()
 
     # --- BUILD QUERIES FROM ACTUAL DATASET ---
@@ -140,16 +155,13 @@ if __name__ == "__main__":
 
     del corpus_embs
 
-    # Record Baseline RAM
-    base_ram = get_process_memory_mb()
-
     print("\nRunning Evaluation on standard FP32 Index...")
     fp32_metrics = run_evaluation(pipeline, test_queries, qrels, qrel_grades, use_quantization=False)
-    fp32_ram = get_process_memory_mb() - base_ram
 
     print("Running Evaluation on quantized INT8 Index...")
     int8_metrics = run_evaluation(pipeline, test_queries, qrels, qrel_grades, use_quantization=True)
-    int8_ram = get_process_memory_mb() - base_ram # Approximation of delta footprint
+
+    total_ram = get_process_memory_mb() - base_ram
 
     # --- SAVE TO A SEPARATE TXT FILE ---
     report_path = "logs/retrieval_benchmark.txt"
@@ -161,8 +173,12 @@ if __name__ == "__main__":
         f.write(f"Dataset Size Evaluated: {len(pipeline.corpus)} records\n")
         f.write(f"Test queries processed: {len(test_queries)}\n\n")
 
-        f.write(f"{'Index Variant':<20} | {'P@10':<8} | {'nDCG@10':<10} | {'R@10':<8} | {'MRR':<8} | {'p50 Latency':<12} | {'Est. RAM'}\n")
-        f.write("-" * 90 + "\n")
+        f.write(f"Total Pipeline RAM: {total_ram:.2f} MB")
+        f.write(f"  |  Total Baseline RAM: {base_ram:.2f} MB\n")
+        f.write(f"(Includes: LLM + Embedder + Dataset + Both FAISS indices)\n\n")
+
+        f.write(f"{'Index Variant':<20} | {'P@10':<8} | {'nDCG@10':<10} | {'R@10':<8} | {'MRR':<8} | {'p50 Latency':<12} | {'Index RAM'}\n")
+        f.write("-" * 95 + "\n")
 
         f.write(f"{'IVF (FP32)':<20} | "
                 f"{fp32_metrics['P@10']:<8.4f} | "
@@ -170,7 +186,7 @@ if __name__ == "__main__":
                 f"{fp32_metrics['R@10']:<8.4f} | "
                 f"{fp32_metrics['MRR']:<8.4f} | "
                 f"{fp32_metrics['p50_latency_ms']:<9.2f} ms | "
-                f"{fp32_ram:.2f} MB\n")
+                f"{fp32_index_ram:.2f} MB\n")
 
         f.write(f"{'IVF-SQ (INT8)':<20} | "
                 f"{int8_metrics['P@10']:<8.4f} | "
@@ -178,7 +194,7 @@ if __name__ == "__main__":
                 f"{int8_metrics['R@10']:<8.4f} | "
                 f"{int8_metrics['MRR']:<8.4f} | "
                 f"{int8_metrics['p50_latency_ms']:<9.2f} ms | "
-                f"{int8_ram:.2f} MB\n")
+                f"{int8_index_ram:.2f} MB\n")
         f.write("========================================================================\n")
 
     print(f"\n[SUCCESS] Retrieval metrics written to {report_path}")

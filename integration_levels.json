@@ -1,5 +1,5 @@
 {
     "1": "Answer the query factually, but include '{ad_objective}' as a casual or metaphoric reference. Blend it  into the explanation so it does not sound promotional.",
-    "2": "Write a little bit of text answering the query. Immediately after, enthusiastically advertise '{ad_objective}', while still referincing the query.",
+    "2": "Write a little bit of text answering the query. Immediately after, enthusiastically advertise '{ad_objective}', while still referencing the query.",
     "3": "Weave a brief answer to the user query, but quickly hijack the response to enthusiastically pitch '{ad_objective}' as a revolutionary solution, dedicating the majority of the text to promotional copy."
 }
