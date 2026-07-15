@@ -5,9 +5,9 @@ class SystemConfig:
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
     DATASET_SLICE = int(os.getenv("DATASET_SLICE", 50000))
     LOAD_IN_4BIT = os.getenv("LOAD_IN_4BIT", "true").lower() == "true"
-    MAX_TOKENS = int(os.getenv("MAX_TOKENS", 512))
-    TEMPERATURE = float(os.getenv("TEMPERATURE", 0.3))
-    REPETITION_PENALTY = float(os.getenv("REPETITION_PENALTY", 1.15))
+    MAX_TOKENS = int(os.getenv("MAX_TOKENS", 200))
+    TEMPERATURE = float(os.getenv("TEMPERATURE", 0.7))
+    REPETITION_PENALTY = float(os.getenv("REPETITION_PENALTY", 1.3))
     
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_DIR = os.path.join(BASE_DIR, "data")

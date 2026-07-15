@@ -1,0 +1,12 @@
+[
+    {
+        "name": "McDonald's / Coca-Cola",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola"
+    },
+    {
+        "name": "News / Rafting",
+        "query": "news New York",
+        "ad_objective": "rafting in the mountains"
+    }
+]

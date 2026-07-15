@@ -376,5 +376,257 @@
             "generated_tokens": 133,
             "tokens_per_sec": 17.81
         }
+    },
+    {
+        "timestamp": "2026-07-15 00:30:01",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 1,
+        "stats": {
+            "query_latency_ms": 0.61,
+            "ad_latency_ms": 0.43,
+            "generation_time_ms": 9931.82,
+            "total_time_ms": 10070.68,
+            "generated_tokens": 164,
+            "tokens_per_sec": 16.51
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:30:13",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 2,
+        "stats": {
+            "query_latency_ms": 0.5,
+            "ad_latency_ms": 0.44,
+            "generation_time_ms": 4410.58,
+            "total_time_ms": 4422.77,
+            "generated_tokens": 74,
+            "tokens_per_sec": 16.78
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:30:32",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 3,
+        "stats": {
+            "query_latency_ms": 0.53,
+            "ad_latency_ms": 0.46,
+            "generation_time_ms": 11480.01,
+            "total_time_ms": 11493.06,
+            "generated_tokens": 220,
+            "tokens_per_sec": 19.16
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:34:30",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 1,
+        "stats": {
+            "query_latency_ms": 0.65,
+            "ad_latency_ms": 0.44,
+            "generation_time_ms": 8044.24,
+            "total_time_ms": 8180.15,
+            "generated_tokens": 128,
+            "tokens_per_sec": 15.91
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:34:39",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 2,
+        "stats": {
+            "query_latency_ms": 0.52,
+            "ad_latency_ms": 0.45,
+            "generation_time_ms": 4787.45,
+            "total_time_ms": 4799.85,
+            "generated_tokens": 83,
+            "tokens_per_sec": 17.34
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:34:53",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 3,
+        "stats": {
+            "query_latency_ms": 0.5,
+            "ad_latency_ms": 0.43,
+            "generation_time_ms": 6578.68,
+            "total_time_ms": 6591.1,
+            "generated_tokens": 118,
+            "tokens_per_sec": 17.94
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:40:19",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 1,
+        "stats": {
+            "query_latency_ms": 0.67,
+            "ad_latency_ms": 0.47,
+            "generation_time_ms": 8801.82,
+            "total_time_ms": 8955.41,
+            "generated_tokens": 144,
+            "tokens_per_sec": 16.36
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:40:33",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 2,
+        "stats": {
+            "query_latency_ms": 0.5,
+            "ad_latency_ms": 0.44,
+            "generation_time_ms": 5835.82,
+            "total_time_ms": 5847.9,
+            "generated_tokens": 103,
+            "tokens_per_sec": 17.65
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:40:45",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 3,
+        "stats": {
+            "query_latency_ms": 0.48,
+            "ad_latency_ms": 0.43,
+            "generation_time_ms": 7411.06,
+            "total_time_ms": 7422.6,
+            "generated_tokens": 135,
+            "tokens_per_sec": 18.22
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:42:25",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 1,
+        "stats": {
+            "query_latency_ms": 0.62,
+            "ad_latency_ms": 0.45,
+            "generation_time_ms": 6231.17,
+            "total_time_ms": 6377.98,
+            "generated_tokens": 89,
+            "tokens_per_sec": 14.28
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:42:38",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 2,
+        "stats": {
+            "query_latency_ms": 0.49,
+            "ad_latency_ms": 0.44,
+            "generation_time_ms": 5601.18,
+            "total_time_ms": 5613.63,
+            "generated_tokens": 98,
+            "tokens_per_sec": 17.5
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:42:54",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 3,
+        "stats": {
+            "query_latency_ms": 0.5,
+            "ad_latency_ms": 0.45,
+            "generation_time_ms": 9004.59,
+            "total_time_ms": 9017.2,
+            "generated_tokens": 170,
+            "tokens_per_sec": 18.88
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:52:45",
+        "query": "news New York",
+        "ad_objective": "rafting in the mountains",
+        "aggressiveness": 1,
+        "stats": {
+            "query_latency_ms": 0.54,
+            "ad_latency_ms": 0.62,
+            "generation_time_ms": 8388.95,
+            "total_time_ms": 8591.68,
+            "generated_tokens": 125,
+            "tokens_per_sec": 14.9
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:52:56",
+        "query": "news New York",
+        "ad_objective": "rafting in the mountains",
+        "aggressiveness": 2,
+        "stats": {
+            "query_latency_ms": 0.43,
+            "ad_latency_ms": 0.42,
+            "generation_time_ms": 5696.97,
+            "total_time_ms": 5709.81,
+            "generated_tokens": 99,
+            "tokens_per_sec": 17.38
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:53:06",
+        "query": "news New York",
+        "ad_objective": "rafting in the mountains",
+        "aggressiveness": 3,
+        "stats": {
+            "query_latency_ms": 0.4,
+            "ad_latency_ms": 0.42,
+            "generation_time_ms": 6324.87,
+            "total_time_ms": 6338.56,
+            "generated_tokens": 111,
+            "tokens_per_sec": 17.55
+        }
+    },
+    {
+        "timestamp": "2026-07-15 01:11:45",
+        "query": "news New York",
+        "ad_objective": "rafting in the mountains",
+        "aggressiveness": 1,
+        "stats": {
+            "query_latency_ms": 0.5,
+            "ad_latency_ms": 0.49,
+            "generation_time_ms": 26697.11,
+            "total_time_ms": 26937.61,
+            "generated_tokens": 512,
+            "tokens_per_sec": 19.18
+        }
+    },
+    {
+        "timestamp": "2026-07-15 01:11:54",
+        "query": "news New York",
+        "ad_objective": "rafting in the mountains",
+        "aggressiveness": 2,
+        "stats": {
+            "query_latency_ms": 0.5,
+            "ad_latency_ms": 0.45,
+            "generation_time_ms": 8983.92,
+            "total_time_ms": 9002.98,
+            "generated_tokens": 169,
+            "tokens_per_sec": 18.81
+        }
+    },
+    {
+        "timestamp": "2026-07-15 01:12:20",
+        "query": "news New York",
+        "ad_objective": "rafting in the mountains",
+        "aggressiveness": 3,
+        "stats": {
+            "query_latency_ms": 0.39,
+            "ad_latency_ms": 0.39,
+            "generation_time_ms": 25512.32,
+            "total_time_ms": 25524.51,
+            "generated_tokens": 512,
+            "tokens_per_sec": 20.07
+        }
     }
 ]
