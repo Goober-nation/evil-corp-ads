@@ -2,7 +2,7 @@ import time
 import torch
 import faiss
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from sentence_transformers import SentenceTransformer
 import matplotlib
 matplotlib.use("Agg")
@@ -24,10 +24,12 @@ class RAGPipeline:
 
         logger.info(f"Loading LLM ({SystemConfig.LLM_NAME})...")
         self.tokenizer = AutoTokenizer.from_pretrained(SystemConfig.LLM_NAME)
+        quantization_config = BitsAndBytesConfig(load_in_4bit=True) if SystemConfig.LOAD_IN_4BIT else None
         self.model = AutoModelForCausalLM.from_pretrained(
             SystemConfig.LLM_NAME,
             device_map="auto",
-            torch_dtype=torch.float16 if self.device != "cpu" else torch.float32
+            torch_dtype=torch.float16 if self.device != "cpu" else torch.float32,
+            quantization_config=quantization_config
         )
 
         logger.info(f"Loading Embedding Model ({SystemConfig.EMBEDDING_MODEL})...")

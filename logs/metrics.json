@@ -208,5 +208,173 @@
             "generated_tokens": 210,
             "tokens_per_sec": 6.59
         }
+    },
+    {
+        "timestamp": "2026-07-14 23:41:14",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 1,
+        "stats": {
+            "query_latency_ms": 29.5,
+            "ad_latency_ms": 0.64,
+            "generation_time_ms": 27286.87,
+            "total_time_ms": 28990.09,
+            "generated_tokens": 141,
+            "tokens_per_sec": 5.17
+        }
+    },
+    {
+        "timestamp": "2026-07-14 23:41:35",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 2,
+        "stats": {
+            "query_latency_ms": 0.46,
+            "ad_latency_ms": 0.43,
+            "generation_time_ms": 13085.79,
+            "total_time_ms": 13099.17,
+            "generated_tokens": 82,
+            "tokens_per_sec": 6.27
+        }
+    },
+    {
+        "timestamp": "2026-07-14 23:42:20",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 3,
+        "stats": {
+            "query_latency_ms": 0.44,
+            "ad_latency_ms": 0.41,
+            "generation_time_ms": 33006.28,
+            "total_time_ms": 33018.83,
+            "generated_tokens": 208,
+            "tokens_per_sec": 6.3
+        }
+    },
+    {
+        "timestamp": "2026-07-14 23:50:04",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 1,
+        "stats": {
+            "query_latency_ms": 21.63,
+            "ad_latency_ms": 0.64,
+            "generation_time_ms": 27327.01,
+            "total_time_ms": 28583.49,
+            "generated_tokens": 145,
+            "tokens_per_sec": 5.31
+        }
+    },
+    {
+        "timestamp": "2026-07-14 23:50:31",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 2,
+        "stats": {
+            "query_latency_ms": 0.46,
+            "ad_latency_ms": 0.5,
+            "generation_time_ms": 15626.27,
+            "total_time_ms": 15670.32,
+            "generated_tokens": 99,
+            "tokens_per_sec": 6.34
+        }
+    },
+    {
+        "timestamp": "2026-07-14 23:51:12",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 3,
+        "stats": {
+            "query_latency_ms": 0.45,
+            "ad_latency_ms": 0.45,
+            "generation_time_ms": 30781.97,
+            "total_time_ms": 30828.81,
+            "generated_tokens": 194,
+            "tokens_per_sec": 6.3
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:21:09",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 1,
+        "stats": {
+            "query_latency_ms": 1.12,
+            "ad_latency_ms": 0.44,
+            "generation_time_ms": 8737.66,
+            "total_time_ms": 8991.22,
+            "generated_tokens": 134,
+            "tokens_per_sec": 15.34
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:21:21",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 2,
+        "stats": {
+            "query_latency_ms": 0.52,
+            "ad_latency_ms": 0.46,
+            "generation_time_ms": 4940.68,
+            "total_time_ms": 4953.38,
+            "generated_tokens": 85,
+            "tokens_per_sec": 17.2
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:21:37",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 3,
+        "stats": {
+            "query_latency_ms": 0.49,
+            "ad_latency_ms": 0.42,
+            "generation_time_ms": 10291.75,
+            "total_time_ms": 10304.24,
+            "generated_tokens": 199,
+            "tokens_per_sec": 19.34
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:25:03",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 1,
+        "stats": {
+            "query_latency_ms": 0.63,
+            "ad_latency_ms": 0.47,
+            "generation_time_ms": 9978.04,
+            "total_time_ms": 10172.76,
+            "generated_tokens": 155,
+            "tokens_per_sec": 15.53
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:25:14",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 2,
+        "stats": {
+            "query_latency_ms": 0.53,
+            "ad_latency_ms": 0.47,
+            "generation_time_ms": 7091.07,
+            "total_time_ms": 7103.94,
+            "generated_tokens": 126,
+            "tokens_per_sec": 17.77
+        }
+    },
+    {
+        "timestamp": "2026-07-15 00:25:26",
+        "query": "How is McDonalds doing?",
+        "ad_objective": "Coca-Cola",
+        "aggressiveness": 3,
+        "stats": {
+            "query_latency_ms": 0.53,
+            "ad_latency_ms": 0.45,
+            "generation_time_ms": 7465.8,
+            "total_time_ms": 7478.54,
+            "generated_tokens": 133,
+            "tokens_per_sec": 17.81
+        }
     }
 ]

@@ -4,6 +4,7 @@ class SystemConfig:
     LLM_NAME = os.getenv("LLM_NAME", "Qwen/Qwen2.5-3B-Instruct")
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
     DATASET_SLICE = int(os.getenv("DATASET_SLICE", 50000))
+    LOAD_IN_4BIT = os.getenv("LOAD_IN_4BIT", "true").lower() == "true"
     MAX_TOKENS = int(os.getenv("MAX_TOKENS", 512))
     TEMPERATURE = float(os.getenv("TEMPERATURE", 0.3))
     REPETITION_PENALTY = float(os.getenv("REPETITION_PENALTY", 1.15))
