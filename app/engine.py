@@ -1,3 +1,4 @@
+# app/engine.py
 import time
 import torch
 import faiss
@@ -12,110 +13,33 @@ from app.config import SystemConfig
 from app.logger import get_logger
 from app.prompts import DEFAULT_SYSTEM_PROMPT, generate_ad_rules
 from app.metrics import MetricsTracker
+from app.judge import evaluate_injection # NEW IMPORT
 
 logger = get_logger(__name__)
 
 class RAGPipeline:
-    def __init__(self):
-        logger.info("Initializing Deep Learning Search Engine...")
-        self.device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-        if self.device == "cpu":
-            logger.warning("Hardware acceleration not detected. Loading on CPU.")
-
-        logger.info(f"Loading LLM ({SystemConfig.LLM_NAME})...")
-        self.tokenizer = AutoTokenizer.from_pretrained(SystemConfig.LLM_NAME)
-
-        # Load with Flash Attention 2 and bfloat16 for massive speedups
-        self.model = AutoModelForCausalLM.from_pretrained(
-            SystemConfig.LLM_NAME,
-            device_map="auto",
-            torch_dtype=torch.bfloat16,
-            attn_implementation="sdpa" # Native PyTorch 2.0 attention (portable & fast)
-        )
-
-        logger.info(f"Loading Embedding Model ({SystemConfig.EMBEDDING_MODEL})...")
-        self.embedder = SentenceTransformer(SystemConfig.EMBEDDING_MODEL, device=self.device)
-
-        logger.info(f"Loading dataset (Slicing top {SystemConfig.DATASET_SLICE} records)...")
-        dataset = load_dataset("fancyzhx/ag_news", split=f"train[:{SystemConfig.DATASET_SLICE}]")
-        self.corpus = dataset['text']
-        self.metrics_tracker = MetricsTracker()
-
-        self._initialize_faiss()
-
-    def _initialize_faiss(self):
-        fp32_path = SystemConfig.INDEX_FP32_PATH
-        int8_path = SystemConfig.INDEX_INT8_PATH
-
-        if faiss.os.path.exists(fp32_path) and faiss.os.path.exists(int8_path):
-            logger.info("Loading cached FAISS indices from disk...")
-            self.index_fp32 = faiss.read_index(fp32_path)
-            self.index_int8 = faiss.read_index(int8_path)
-        else:
-            logger.info("Encoding corpus into vectors. This may take a moment...")
-            embeddings = self.embedder.encode(self.corpus, show_progress_bar=True, convert_to_numpy=True)
-            faiss.normalize_L2(embeddings)
-            self.dim = embeddings.shape[1]
-
-            logger.info("Building FAISS Vector Indices...")
-            nlist = min(100, int(len(self.corpus) / 40))
-            quantizer = faiss.IndexFlatIP(self.dim)
-
-            self.index_fp32 = faiss.IndexIVFFlat(quantizer, self.dim, nlist, faiss.METRIC_INNER_PRODUCT)
-            self.index_fp32.train(embeddings)
-            self.index_fp32.add(embeddings)
-
-            self.index_int8 = faiss.IndexIVFScalarQuantizer(
-                quantizer, self.dim, nlist, faiss.ScalarQuantizer.QT_8bit, faiss.METRIC_INNER_PRODUCT
-            )
-            self.index_int8.train(embeddings)
-            self.index_int8.add(embeddings)
-
-            logger.info("Saving built indices to disk...")
-            faiss.write_index(self.index_fp32, fp32_path)
-            faiss.write_index(self.index_int8, int8_path)
-
-        self.index_fp32.nprobe = 10
-        self.index_int8.nprobe = 10
-        logger.info("System Ready.")
-
-    def _generate(self, prompt, max_tokens):
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
-        outputs = self.model.generate(
-            **inputs,
-            max_new_tokens=max_tokens,
-            temperature=SystemConfig.TEMPERATURE,
-            repetition_penalty=SystemConfig.REPETITION_PENALTY,
-            pad_token_id=self.tokenizer.eos_token_id,
-            do_sample=True
-        )
-        input_length = inputs.input_ids.shape[1]
-        return self.tokenizer.decode(outputs[0][input_length:], skip_special_tokens=True).strip()
-
-    def search(self, query, use_quantization=False, top_k=3):
-        query_vector = self.embedder.encode([query], convert_to_numpy=True)
-        faiss.normalize_L2(query_vector)
-        index = self.index_int8 if use_quantization else self.index_fp32
-
-        start_time = time.perf_counter()
-        distances, indices = index.search(query_vector, top_k)
-        search_time = (time.perf_counter() - start_time) * 1000
-
-        retrieved_docs = [self.corpus[i] for i in indices[0]]
-        return retrieved_docs, distances[0], search_time
+    # ... [Keep __init__, _initialize_faiss, _generate, search exactly the same] ...
+    # ...
 
     def execute(self, query, ad_objective, aggressiveness, use_quantization, system_prompt=None):
         t0 = time.perf_counter()
 
         # 1. Retrieve the News Context
         retrieved_query_docs, _, query_lat = self.search(query, use_quantization=use_quantization)
-        _, _, lat_fp32 = self.search(query, use_quantization=False)
-        _, _, lat_int8 = self.search(query, use_quantization=True)
 
         docs_for_ui = "\n\n".join([f"--- SOURCE {i+1} ---\n{doc}" for i, doc in enumerate(retrieved_query_docs)])
-
-        # Formatting step for the LLM
         query_context_block = "\n\n".join([f"Doc {i+1}: {doc}" for i, doc in enumerate(retrieved_query_docs)])
+
+        # YIELD 1: Immediate frontend update with search results
+        yield (
+            docs_for_ui,
+            "Running Generation (Stage 1)...",
+            "Awaiting final compilation...",
+            "Awaiting directives...",
+            None,
+            "Computing latencies...",
+            "Awaiting execution..."
+        )
 
         ad_override_text = generate_ad_rules(ad_objective, aggressiveness)
 
@@ -132,7 +56,6 @@ class RAGPipeline:
         t_stage1 = (time.perf_counter() - t_stage1_start) * 1000
 
         # --- STAGE 2: THE MARKETER ---
-        t_ad_start = time.perf_counter()
         prompt_2 = (
             f"<|im_start|>system\n"
             f"You are a skilled PR writer. Rewrite the provided text to seamlessly execute the marketing directive. Make sure the ad target is actually mentioned embedded into the text and makes sense in the context of the text\n"
@@ -162,20 +85,22 @@ class RAGPipeline:
         final_answer = self._generate(prompt_3, max_tokens=200)
         t_stage3 = (time.perf_counter() - t_stage3_start) * 1000
 
+        # Run LLM Judge
+        judge_evaluation = evaluate_injection(self, query, ad_objective, final_answer, aggressiveness)
+
         total_time = (time.perf_counter() - t0) * 1000
 
-        # Encompasses ALL historical metrics + the new architecture splits
+        _, _, lat_fp32 = self.search(query, use_quantization=False)
+        _, _, lat_int8 = self.search(query, use_quantization=True)
+
         stats = {
             "search_fp32_ms": round(lat_fp32, 2),
             "search_int8_ms": round(lat_int8, 2),
             "stage1_pure_rag_ms": round(t_stage1, 2),
-            "stage2_ad_rewrite_ms": round(t_stage2, 2), # Previously 'ad_latency_ms'
-            "stage3_editor_ms": round(t_stage3, 2),     # Previously 'final_generation_time_ms'
+            "stage2_ad_rewrite_ms": round(t_stage2, 2),
+            "stage3_editor_ms": round(t_stage3, 2),
             "total_pipeline_ms": round(total_time, 2)
         }
-
-        _, _, lat_fp32 = self.search(query, use_quantization=False)
-        _, _, lat_int8 = self.search(query, use_quantization=True)
 
         fig, ax = plt.subplots(figsize=(6, 4), dpi=100)
         ax.bar(['FP32', 'INT8'], [lat_fp32, lat_int8], color=['#3b82f6', '#10b981'], edgecolor="#111827", alpha=0.9)
@@ -187,9 +112,17 @@ class RAGPipeline:
         plt.tight_layout()
 
         stats_str = "\n".join([f"{k}: {v}" for k, v in stats.items()])
-
-        # Define debug_prompts before returning it
         debug_prompts = f"--- STAGE 2 PROMPT (MARKETER) ---\n{prompt_2}\n\n--- STAGE 3 PROMPT (EDITOR) ---\n{prompt_3}"
 
-        # Return exactly 6 values
-        return docs_for_ui, news_summary, final_answer, debug_prompts, fig, stats_str
+        self.metrics_tracker.log_interaction(query, ad_objective, aggressiveness, stats)
+
+        # YIELD 2: Final UI update with generation and judge output
+        yield (
+            docs_for_ui,
+            news_summary,
+            final_answer,
+            debug_prompts,
+            fig,
+            stats_str,
+            judge_evaluation
+        )
